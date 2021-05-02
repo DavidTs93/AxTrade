@@ -1,0 +1,15 @@
+name: AxTrade
+main: me.DMan16.AxTrade.AxTrade
+depend: [AxUtils]
+version: 1.0
+description: Trades for Aldreda
+author: DMan16
+api-version: 1.16
+
+commands:
+  trade:
+    permission: aldreda.command.axtrade.trade
+    aliases: [t]
+permissions:
+  aldreda.command.axtrade.trade:
+    default: true
