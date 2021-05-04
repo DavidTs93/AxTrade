@@ -12,7 +12,6 @@ public class AxTrade extends JavaPlugin {
 	
 	public void onEnable() {
 		instance = this;
-		saveDefaultConfig();
 		TradeListener = new TradeListener();
 		Utils.chatColorsLogPlugin("&fAxTrade &aloaded!");
 	}

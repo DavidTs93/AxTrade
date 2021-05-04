@@ -25,7 +25,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public class TradeListener implements CommandExecutor,TabCompleter {
 	private HashMap<Player,List<Player>> players;
 	private HashMap<Long,TradeRequest> requests;
-	private int autoCancelTime = 16; // Seconds
+	private int autoCancelTime = 10; // Seconds
 	private Set<Player> trading;
 	
 	public TradeListener() {
@@ -60,20 +60,23 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 			}
 		}
 		Player player2 = Bukkit.getPlayer(args[0]);
-		if (player2 != null) {
-			if (players.containsKey(player2) && players.get(player2).contains(player1)) for (TradeRequest request : requests.values())
-				if (request.player1.equals(player2) && request.player2.equals(player1)) {
+		if (player2 != null && !player1.equals(player2)) {
+			if (players.containsKey(player2) && players.get(player2).contains(player1)) {
+				for (TradeRequest request : requests.values()) if (request.player1.equals(player2) && request.player2.equals(player1)) {
 					request.accept();
-					break;
+					break;	
+				}
 			} else new TradeRequest(player1,player2);
 		}
 		return true;
 	}
 	
 	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-		if (args.length > 1) return null;
+		if (args.length > 1 || !(sender instanceof Player)) return null;
+		String name = ((Player) sender).getName();
 		List<String> resultList = new ArrayList<String>();
-		if (args.length == 1) for (Player player : Bukkit.getOnlinePlayers()) if (contains(args[0],player.getName())) resultList.add(player.getName());
+		if (args.length == 1) for (Player player : Bukkit.getOnlinePlayers()) if (contains(args[0],player.getName()) && !player.getName().equals(name))
+			resultList.add(player.getName());
 		return resultList;
 	}
 	
@@ -111,11 +114,11 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 			if (!players.containsKey(player1)) players.put(player1, new ArrayList<Player>());
 			players.get(player1).add(player2);
 			requests.put(this.id,this);
-			player2.sendMessage(Component.translatable("trade.aldreda.trade_request",NamedTextColor.GREEN).args(player1.displayName()).append(Component.text(" [").append(
-					Component.translatable("trade.aldreda.accept")).append(Component.text("]")).color(NamedTextColor.GREEN).clickEvent(
-							ClickEvent.runCommand("trade accept request ID " + id))).append(Component.text(" [").append(
+			player2.sendMessage(Component.translatable("trade.aldreda.trade_request",NamedTextColor.AQUA).args(player1.displayName().color(NamedTextColor.WHITE)).append(
+					Component.text(" [").append(Component.translatable("trade.aldreda.accept")).append(Component.text("]")).color(NamedTextColor.GREEN).clickEvent(
+							ClickEvent.runCommand("/trade accept request ID " + id))).append(Component.text(" [").append(
 					Component.translatable("trade.aldreda.deny")).append(Component.text("]")).color(NamedTextColor.RED).clickEvent(ClickEvent.runCommand(
-							"trade deny request ID " + id))));
+							"/trade deny request ID " + id))));
 			cancelTask = new BukkitRunnable() {
 				public void run() {
 					removeTrade(id);
@@ -136,7 +139,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 			addTrading(player1);
 			addTrading(player2);
 			removeTrade(id);
-			player1.sendMessage(Component.translatable("trade.aldreda.trade_accepted",NamedTextColor.GREEN).args(player2.displayName()));
+			player1.sendMessage(Component.translatable("trade.aldreda.trade_accepted",NamedTextColor.GREEN).args(player2.displayName().color(NamedTextColor.WHITE)));
 			new BukkitRunnable() {
 				public void run() {
 					new Trade(player1,player2);
@@ -147,7 +150,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 		private void deny() {
 			cancelTask.cancel();
 			removeTrade(id);
-			player1.sendMessage(Component.translatable("trade.aldreda.trade_denied",NamedTextColor.RED).args(player2.displayName()));
+			player1.sendMessage(Component.translatable("trade.aldreda.trade_denied",NamedTextColor.RED).args(player2.displayName().color(NamedTextColor.WHITE)));
 		}
 	}
 }

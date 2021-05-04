@@ -51,7 +51,7 @@ public class Trade extends Listener {
 	private static final ItemStack emptyGray = Utils.makeItem(Material.LIGHT_GRAY_STAINED_GLASS_PANE,Component.text(" "),ItemFlag.values());
 	
 	static {
-		accepted.addEnchantment(Enchantment.DURABILITY,1);
+		accepted.addUnsafeEnchantment(Enchantment.DURABILITY,1);
 	}
 	
 	List<Integer> tradeSlots = Arrays.asList(10,11,12,19,20,21,28,29,30,37,38,39);
@@ -63,6 +63,8 @@ public class Trade extends Listener {
 	private boolean accept1 = false;
 	private boolean accept2 = false;
 	private boolean economy = AxUtils.getEconomy() != null;
+	private boolean autoAccept = false;
+	private boolean done = false;
 	
 	private final InventoryHolder initiator;
 	private final Player responder;
@@ -80,7 +82,10 @@ public class Trade extends Listener {
 		if (initiator == null || responder == null) Objects.requireNonNull(null,"Traders can't be null!");
 		this.initiator = initiator;
 		this.responder = responder;
-		if (this.initiator instanceof Player) AxTrade.getTradeListener().addTrading((Player) initiator);
+		if (this.initiator instanceof Player) {
+			AxTrade.getTradeListener().addTrading((Player) initiator);
+			autoAccept = Utils.isPlayerNPC((Player) initiator);
+		}
 		AxTrade.getTradeListener().addTrading(responder);
 		inventory1 = Utils.makeInventory(initiator,6,Component.translatable(translateTrade).color(NamedTextColor.BLUE).decoration(TextDecoration.ITALIC,false));
 		inventory2 = Utils.makeInventory(responder,6,Component.translatable(translateTrade).color(NamedTextColor.BLUE).decoration(TextDecoration.ITALIC,false));
@@ -99,13 +104,16 @@ public class Trade extends Listener {
 		inventory2.setItem(closeSlot,Utils.makeItem(Material.BARRIER,Component.translatable("spectatorMenu.close",
 				NamedTextColor.RED).decoration(TextDecoration.ITALIC,false),ItemFlag.values()));
 		setMoney();
+		register(AxTrade.getInstance());
+		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) ((Player) initiator).openInventory(inventory1);
+		responder.openInventory(inventory2);
 	}
 	
-	private void cancel() {
+	private void finish1() {
 		unregister();
 		 if (MoneyListener1 != null) MoneyListener1.unregister();
 		 if (MoneyListener2 != null) MoneyListener2.unregister();
-		ItemStack cursor1 = (initiator instanceof Player) ? ((Player) initiator).getItemOnCursor() : null;
+		ItemStack cursor1 = (initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator) ? ((Player) initiator).getItemOnCursor() : null;
 		ItemStack cursor2 = responder.getItemOnCursor();
 		if (!Utils.isNull(cursor1)) {
 			((Player) initiator).setItemOnCursor(null);
@@ -115,63 +123,69 @@ public class Trade extends Listener {
 			responder.setItemOnCursor(null);
 			Utils.givePlayer(responder,cursor2,false);
 		}
-		Component msg = Component.translatable(translateCancelled).color(NamedTextColor.RED).decoration(TextDecoration.ITALIC,false);
-		if (initiator instanceof Player) {
-			((Player) initiator).closeInventory();
-			((Player) initiator).sendMessage(msg);
-		}
+		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) ((Player) initiator).closeInventory();
 		responder.closeInventory();
+	}
+	
+	private void finish2() {
+		inventory1.clear();
+		inventory2.clear();
+		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) AxTrade.getTradeListener().removeTrading((Player) initiator);
+		AxTrade.getTradeListener().removeTrading(responder);
+	}
+	
+	private void cancel() {
+		finish1();
+		Component msg = Component.translatable(translateCancelled).color(NamedTextColor.RED).decoration(TextDecoration.ITALIC,false);
+		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) ((Player) initiator).sendMessage(msg);
 		responder.sendMessage(msg);
 		for (int i : tradeSlots) {
 			ItemStack item1 = inventory1.getItem(i);
 			ItemStack item2 = inventory2.getItem(i);
 			
-			if (!Utils.isNull(item1) && (initiator instanceof Player)) Utils.givePlayer((Player) initiator,item1,false);
+			if (!Utils.isNull(item1) && (initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) Utils.givePlayer((Player) initiator,item1,false);
 			if (!Utils.isNull(item2)) Utils.givePlayer(responder,item2,false);
 		}
-		inventory1.clear();
-		inventory2.clear();
-		if (initiator instanceof Player) AxTrade.getTradeListener().removeTrading((Player) initiator);
-		AxTrade.getTradeListener().removeTrading(responder);
+		finish2();
 	}
 	
 	private void checkDone() {
-		inventory1.setItem(acceptSlot1,accept1 ? accepted : accept);
-		inventory2.setItem(acceptSlot2,accept1 ? accepted : accept);
-		inventory1.setItem(acceptSlot2,accept2 ? accepted : accept);
-		inventory2.setItem(acceptSlot1,accept2 ? accepted : accept);
+		if (autoAccept && done) accept1 = true;
+		if (accept1) {
+			inventory1.setItem(acceptSlot1,accepted);
+			inventory2.setItem(acceptSlot2,accepted);
+		}
+		if (accept2) {
+			inventory1.setItem(acceptSlot2,accepted);
+			inventory2.setItem(acceptSlot1,accepted);
+		}
 		if (!accept1 || !accept2) return;
-		new BukkitRunnable() {
-			public void run() {
-				double diff = money1 - money2;
-				if (initiator instanceof Player) {
-					Player init = (Player) initiator;
-					Player remove = null;
-					Player add = null;
-					if (diff > 0) {
-						remove = init;
-						add = responder;
-					} else if (diff < 0) {
-						remove = responder;
-						add = init;
-					}
-					diff = Math.abs(diff);
-					if (remove != null) if (AxUtils.getEconomy().withdrawBankPlayer(remove,diff).transactionSuccess())
-						if (!AxUtils.getEconomy().depositBankPlayer(add,diff).transactionSuccess()) AxUtils.getEconomy().depositBankPlayer(remove,diff);
-				} else if (diff > 0) AxUtils.getEconomy().depositBankPlayer(responder,Math.abs(diff)).transactionSuccess();
-				else if (diff < 0) AxUtils.getEconomy().withdrawBankPlayer(responder,Math.abs(diff)).transactionSuccess();
-				for (int i : tradeSlots) {
-					ItemStack item1 = inventory1.getItem(i);
-					ItemStack item2 = inventory2.getItem(i);
-					if (!Utils.isNull(item2) && (initiator instanceof Player)) Utils.givePlayer((Player) initiator,item2,false);
-					if (!Utils.isNull(item1)) Utils.givePlayer(responder,item1,false);
-				}
-				inventory1.clear();
-				inventory2.clear();
-				if (initiator instanceof Player) AxTrade.getTradeListener().removeTrading((Player) initiator);
-				AxTrade.getTradeListener().removeTrading(responder);
+		finish1();
+		double diff = money1 - money2;
+		if (diff != 0 && (initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) {
+			Player init = (Player) initiator;
+			Player remove = null;
+			Player add = null;
+			Utils.broadcast(Component.text("diff = " + diff));
+			if (diff > 0) {
+				remove = init;
+				add = responder;
+			} else if (diff < 0) {
+				remove = responder;
+				add = init;
 			}
-		}.runTask(AxTrade.getInstance());
+			diff = Math.abs(diff);
+			if (remove != null) if (AxUtils.getEconomy().withdrawBankPlayer(remove,diff).transactionSuccess())
+				if (!AxUtils.getEconomy().depositBankPlayer(add,diff).transactionSuccess()) AxUtils.getEconomy().depositBankPlayer(remove,diff);
+		} else if (diff > 0) AxUtils.getEconomy().depositBankPlayer(responder,Math.abs(diff)).transactionSuccess();
+		else if (diff < 0) AxUtils.getEconomy().withdrawBankPlayer(responder,Math.abs(diff)).transactionSuccess();
+		for (int i : tradeSlots) {
+			ItemStack item1 = inventory1.getItem(i);
+			ItemStack item2 = inventory2.getItem(i);
+			if (!Utils.isNull(item2) && (initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) Utils.givePlayer((Player) initiator,item2,false);
+			if (!Utils.isNull(item1)) Utils.givePlayer(responder,item1,false);
+		}
+		finish2();
 	}
 	
 	private void updateTrade() {
@@ -180,17 +194,22 @@ public class Trade extends Listener {
 			ItemStack item1 = inventory1.getItem(i);
 			ItemStack item2 = inventory2.getItem(i);
 			empty = empty && Utils.isNull(item1) && Utils.isNull(item2);
-			inventory1.setItem(i + 4,Utils.isNull(item2) ? emptyGray : item2);
-			inventory2.setItem(i + 4,Utils.isNull(item1) ? emptyGray : item1);
+			new BukkitRunnable() {
+				public void run() {
+					inventory1.setItem(i + 4,Utils.isNull(item2) ? emptyGray : item2);
+					inventory2.setItem(i + 4,Utils.isNull(item1) ? emptyGray : item1);
+				}
+			}.runTask(AxTrade.getInstance());
 		}
 		if (timer != null) {
 			timer.cancel();
 			acceptTimer = acceptStart;
 		}
 		boolean clear = empty;
+		Utils.broadcast(Component.text("empty: " + clear));
 		timer = new BukkitRunnable() {
 			public void run() {
-				if (clear) {
+				if (clear && money1 - money2 != 0) {
 					cancel();
 					timer = null;
 					inventory1.setItem(acceptSlot1,emptyBlack);
@@ -258,21 +277,57 @@ public class Trade extends Listener {
 		}
 	}
 	
-	public void setItemInitiator(int slot, ItemStack item) {
-		if ((this.initiator instanceof Player) || Utils.isNull(item) || slot < 0 || slot >= 6 * 9) return;
+	public Trade setItemInitiator(int slot, ItemStack item) {
+		if (((this.initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) || Utils.isNull(item) || slot < 0 || slot >= 6 * 9) return this;
 		inventory1.setItem(slot,item);
 		updateTrade();
+		return this;
 	}
 	
-	public void setMoneyInitiator(double amount) {
-		if (!(this.initiator instanceof Player)) return;
+	public Trade setMoneyInitiator(double amount) {
+		if ((this.initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) return this;
 		money1 = Math.max(amount,0);
 		setMoney();
+		return this;
+	}
+	
+	public Trade setAcceptInitiator(boolean val) {
+		if ((this.initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) return this;
+		accept1 = val;
+		return this;
+	}
+	
+	public Trade setAutoAcceptWhenDone(boolean val) {
+		if ((this.initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) return this;
+		autoAccept = val;
+		return this;
+	}
+	
+	public Trade setDoneInitiator(boolean val) {
+		if ((this.initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) return this;
+		done = val;
+		return this;
+	}
+	
+	public ItemStack getItemInitiator(int slot) {
+		return inventory1.getItem(slot);
+	}
+	
+	public double getMoneyInitiator(double amount) {
+		return money1;
+	}
+	
+	public ItemStack getItemResponder(int slot) {
+		return inventory2.getItem(slot);
+	}
+	
+	public double getMoneyResponder(double amount) {
+		return money2;
 	}
 	
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void cancelOnLeaveEvent(PlayerQuitEvent event) {
-		if (((initiator instanceof Player) && event.getPlayer().getUniqueId().equals(((Player) initiator).getUniqueId())) ||
+		if (((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator) && event.getPlayer().getUniqueId().equals(((Player) initiator).getUniqueId())) ||
 				event.getPlayer().getUniqueId().equals(responder.getUniqueId())) cancel();
 	}
 	
