@@ -39,6 +39,7 @@ public class Trade extends Listener {
 	private static final String translateTrade = "trade.aldreda.trade";
 	private static final String translateWait = "trade.aldreda.trade_wait";
 	private static final String translateCancelled = "trade.aldreda.trade_cancelled";
+	private static final String translateComplete = "trade.aldreda.trade_complete";
 	private static final String translateMoney = "bank.aldreda.money";
 	private static final ItemStack money = Utils.makeItem(Material.EMERALD,Component.translatable(translateMoney,
 			NamedTextColor.GOLD).decoration(TextDecoration.ITALIC,false),ItemFlag.values());
@@ -130,8 +131,13 @@ public class Trade extends Listener {
 	private void finish2() {
 		inventory1.clear();
 		inventory2.clear();
-		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) AxTrade.getTradeListener().removeTrading((Player) initiator);
+		Component msg = Component.translatable(translateComplete).color(NamedTextColor.GREEN).decoration(TextDecoration.ITALIC,false);
+		if ((initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) {
+			AxTrade.getTradeListener().removeTrading((Player) initiator);
+			((Player) initiator).sendMessage(msg);
+		}
 		AxTrade.getTradeListener().removeTrading(responder);
+		responder.sendMessage(msg);
 	}
 	
 	private void cancel() {
@@ -151,14 +157,11 @@ public class Trade extends Listener {
 	
 	private void checkDone() {
 		if (autoAccept && done) accept1 = true;
-		if (accept1) {
-			inventory1.setItem(acceptSlot1,accepted);
-			inventory2.setItem(acceptSlot2,accepted);
-		}
-		if (accept2) {
-			inventory1.setItem(acceptSlot2,accepted);
-			inventory2.setItem(acceptSlot1,accepted);
-		}
+		boolean empty = isEmpty();
+		inventory1.setItem(acceptSlot1,accept1 ? accepted : (empty ? emptyBlack : accept));
+		inventory2.setItem(acceptSlot2,accept1 ? accepted : (empty ? emptyBlack : accept));
+		inventory1.setItem(acceptSlot2,accept2 ? accepted : (empty ? emptyBlack : accept));
+		inventory2.setItem(acceptSlot1,accept2 ? accepted : (empty ? emptyBlack : accept));
 		if (!accept1 || !accept2) return;
 		finish1();
 		double diff = money1 - money2;
@@ -166,7 +169,6 @@ public class Trade extends Listener {
 			Player init = (Player) initiator;
 			Player remove = null;
 			Player add = null;
-			Utils.broadcast(Component.text("diff = " + diff));
 			if (diff > 0) {
 				remove = init;
 				add = responder;
@@ -175,10 +177,10 @@ public class Trade extends Listener {
 				add = init;
 			}
 			diff = Math.abs(diff);
-			if (remove != null) if (AxUtils.getEconomy().withdrawBankPlayer(remove,diff).transactionSuccess())
-				if (!AxUtils.getEconomy().depositBankPlayer(add,diff).transactionSuccess()) AxUtils.getEconomy().depositBankPlayer(remove,diff);
-		} else if (diff > 0) AxUtils.getEconomy().depositBankPlayer(responder,Math.abs(diff)).transactionSuccess();
-		else if (diff < 0) AxUtils.getEconomy().withdrawBankPlayer(responder,Math.abs(diff)).transactionSuccess();
+			if (remove != null) if (AxUtils.getEconomy().withdrawPlayer(remove,diff).transactionSuccess())
+				if (!AxUtils.getEconomy().depositPlayer(add,diff).transactionSuccess()) AxUtils.getEconomy().depositPlayer(remove,diff);
+		} else if (diff > 0) AxUtils.getEconomy().depositPlayer(responder,Math.abs(diff)).transactionSuccess();
+		else if (diff < 0) AxUtils.getEconomy().withdrawPlayer(responder,Math.abs(diff)).transactionSuccess();
 		for (int i : tradeSlots) {
 			ItemStack item1 = inventory1.getItem(i);
 			ItemStack item2 = inventory2.getItem(i);
@@ -188,48 +190,55 @@ public class Trade extends Listener {
 		finish2();
 	}
 	
-	private void updateTrade() {
+	private boolean isEmpty() {
 		boolean empty = true;
 		for (int i : tradeSlots) {
 			ItemStack item1 = inventory1.getItem(i);
 			ItemStack item2 = inventory2.getItem(i);
 			empty = empty && Utils.isNull(item1) && Utils.isNull(item2);
-			new BukkitRunnable() {
-				public void run() {
+		}
+		return empty;
+	}
+	
+	private void updateTrade() {
+		new BukkitRunnable() {
+			public void run() {
+				for (int i : tradeSlots) {
+					ItemStack item1 = inventory1.getItem(i);
+					ItemStack item2 = inventory2.getItem(i);
 					inventory1.setItem(i + 4,Utils.isNull(item2) ? emptyGray : item2);
 					inventory2.setItem(i + 4,Utils.isNull(item1) ? emptyGray : item1);
 				}
-			}.runTask(AxTrade.getInstance());
-		}
-		if (timer != null) {
-			timer.cancel();
-			acceptTimer = acceptStart;
-		}
-		boolean clear = empty;
-		Utils.broadcast(Component.text("empty: " + clear));
-		timer = new BukkitRunnable() {
-			public void run() {
-				if (clear && money1 - money2 != 0) {
-					cancel();
-					timer = null;
-					inventory1.setItem(acceptSlot1,emptyBlack);
-					inventory1.setItem(acceptSlot2,emptyBlack);
-					inventory2.setItem(acceptSlot1,emptyBlack);
-					inventory2.setItem(acceptSlot2,emptyBlack);
-				} else {
-					ItemStack item = acceptTimer == 0 ? accept : wait.asQuantity(acceptTimer);
-					inventory1.setItem(acceptSlot1,item);
-					inventory1.setItem(acceptSlot2,accept);
-					inventory2.setItem(acceptSlot1,item);
-					inventory2.setItem(acceptSlot2,accept);
-					if (acceptTimer <= 0) {
-						cancel();
-						acceptTimer = acceptStart;
-						timer = null;
-					} else acceptTimer--;
+				if (timer != null) {
+					timer.cancel();
+					acceptTimer = acceptStart;
 				}
+				boolean empty = isEmpty();
+				timer = new BukkitRunnable() {
+					public void run() {
+						if (empty && money1 - money2 == 0) {
+							cancel();
+							timer = null;
+							inventory1.setItem(acceptSlot1,emptyBlack);
+							inventory1.setItem(acceptSlot2,emptyBlack);
+							inventory2.setItem(acceptSlot1,emptyBlack);
+							inventory2.setItem(acceptSlot2,emptyBlack);
+						} else {
+							ItemStack item = acceptTimer == 0 ? accept : wait.asQuantity(acceptTimer);
+							inventory1.setItem(acceptSlot1,item);
+							inventory1.setItem(acceptSlot2,accept);
+							inventory2.setItem(acceptSlot1,item);
+							inventory2.setItem(acceptSlot2,accept);
+							if (acceptTimer <= 0) {
+								cancel();
+								acceptTimer = acceptStart;
+								timer = null;
+							} else acceptTimer--;
+						}
+					}
+				}.runTaskTimer(AxTrade.getInstance(),1,20);
 			}
-		}.runTaskTimer(AxTrade.getInstance(),1,20);
+		}.runTask(AxTrade.getInstance());
 	}
 	
 	private void setMoney() {
@@ -246,8 +255,8 @@ public class Trade extends Listener {
 	
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
 	public void onClose(InventoryCloseEvent event) {
-		if ((event.getView().getTopInventory().equals(inventory1) && MoneyListener1 != null) ||
-				(event.getView().getTopInventory().equals(inventory2)) && MoneyListener2 != null) cancel();
+		if ((event.getView().getTopInventory().equals(inventory1) && MoneyListener1 == null) ||
+				(event.getView().getTopInventory().equals(inventory2)) && MoneyListener2 == null) cancel();
 	}
 	
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
@@ -260,9 +269,10 @@ public class Trade extends Listener {
 			return;
 		}
 		int slot = event.getRawSlot();
-		if (tradeSlots.contains(slot) || slot >= 6 * 9) {
-			if (slot >= 6 * 9 && !event.isShiftClick()) return;
-			updateTrade();
+		if (slot >= 6 * 9) {
+			if (event.isShiftClick()) updateTrade();
+		} else if (tradeSlots.contains(slot)) {
+			if (!Utils.isNull(event.getView().getItem(slot)) || (!Utils.isNull(event.getCursor()) && !event.isShiftClick())) updateTrade();
 		} else {
 			event.setCancelled(true);
 			if (slot == closeSlot) cancel();
@@ -341,10 +351,14 @@ public class Trade extends Listener {
 			this.player = player;
 			this.limit = AxUtils.getEconomy().getBalance(player);
 			this.player1 = player1;
-			player.closeInventory();
-			player.sendMessage(Component.translatable(translateMoney).append(Component.text(": 0 - " +
-					limit)).color(NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC,false));
 			register(AxTrade.getInstance());
+			new BukkitRunnable() {
+				public void run() {
+					player.sendMessage(Component.translatable(translateMoney).append(Component.text(": 0 - " +
+							limit)).color(NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC,false));
+					player.closeInventory();
+				}
+			}.runTask(AxTrade.getInstance());
 		}
 		
 		@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
