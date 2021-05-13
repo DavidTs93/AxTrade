@@ -1,31 +1,5 @@
 package me.DMan16.AxTrade;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-
-import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.inventory.ClickType;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
-import org.bukkit.event.player.PlayerCommandPreprocessEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerItemHeldEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
-import org.bukkit.inventory.ItemFlag;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
-
 import io.papermc.paper.event.player.AsyncChatEvent;
 import me.Aldreda.AxUtils.AxUtils;
 import me.Aldreda.AxUtils.Classes.Listener;
@@ -34,6 +8,25 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 public class Trade extends Listener {
 	private static final String translateTrade = "trade.aldreda.trade";
@@ -352,6 +345,7 @@ public class Trade extends Listener {
 			this.limit = AxUtils.getEconomy().getBalance(player);
 			this.player1 = player1;
 			register(AxTrade.getInstance());
+			Utils.addCancelledPlayer(player);
 			new BukkitRunnable() {
 				public void run() {
 					player.sendMessage(Component.translatable(translateMoney).append(Component.text(": 0 - " +
@@ -394,46 +388,7 @@ public class Trade extends Listener {
 		@Override
 		public void unregister() {
 			super.unregister();
-		}
-		
-		@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-		public void unregisterOnLeaveEvent(PlayerQuitEvent event) {
-			if (event.getPlayer().getUniqueId().equals(player.getUniqueId())) unregister();
-		}
-		
-		@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-		public void onMove(PlayerMoveEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onInteract(PlayerInteractEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onSwap(PlayerSwapHandItemsEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onDrop(PlayerDropItemEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onClick(InventoryClickEvent event) {
-			if (event.getWhoClicked().getUniqueId().equals(player.getUniqueId())) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onCommand(PlayerCommandPreprocessEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
-		}
-		
-		@EventHandler(priority = EventPriority.LOWEST)
-		public void onHotbar(PlayerItemHeldEvent event) {
-			if (event.getPlayer().equals(player)) event.setCancelled(true);
+			Utils.removeCancelledPlayer(player);
 		}
 	}
 }
