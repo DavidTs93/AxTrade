@@ -1,28 +1,21 @@
 package me.DMan16.AxTrade;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.command.TabCompleter;
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
-
 import me.Aldreda.AxUtils.Classes.Listener;
 import me.Aldreda.AxUtils.Utils.Utils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
+import org.bukkit.command.*;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.*;
 
 public class TradeListener implements CommandExecutor,TabCompleter {
+	private static double minDistance = 5;
+	
 	private HashMap<Player,List<Player>> players;
 	private HashMap<Long,TradeRequest> requests;
 	private int autoCancelTime = 10; // Seconds
@@ -114,6 +107,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 			if (!players.containsKey(player1)) players.put(player1, new ArrayList<Player>());
 			players.get(player1).add(player2);
 			requests.put(this.id,this);
+			player1.sendMessage(Component.translatable("trade.aldreda.trade_outgoing",NamedTextColor.AQUA).args(player2.displayName().color(NamedTextColor.WHITE)));
 			player2.sendMessage(Component.translatable("trade.aldreda.trade_request",NamedTextColor.AQUA).args(player1.displayName().color(NamedTextColor.WHITE)).append(
 					Component.text(" [").append(Component.translatable("trade.aldreda.accept")).append(Component.text("]")).color(NamedTextColor.GREEN).clickEvent(
 							ClickEvent.runCommand("/trade accept request ID " + id))).append(Component.text(" [").append(
@@ -135,6 +129,8 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 		
 		private void accept() {
 			if (trading.contains(player1) || trading.contains(player2)) return;
+			if (!player1.getWorld().equals(player2.getWorld())) return;
+			if (player1.getLocation().distance(player2.getLocation()) > minDistance) return;
 			cancelTask.cancel();
 			addTrading(player1);
 			addTrading(player2);

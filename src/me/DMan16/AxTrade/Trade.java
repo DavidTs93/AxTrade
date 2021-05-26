@@ -345,7 +345,7 @@ public class Trade extends Listener {
 			this.limit = AxUtils.getEconomy().getBalance(player);
 			this.player1 = player1;
 			register(AxTrade.getInstance());
-			Utils.addCancelledPlayer(player);
+			Utils.addCancelledPlayer(player,true,false);
 			new BukkitRunnable() {
 				public void run() {
 					player.sendMessage(Component.translatable(translateMoney).append(Component.text(": 0 - " +
