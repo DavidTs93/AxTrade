@@ -122,6 +122,10 @@ public class Trade extends Listener {
 	}
 	
 	private void finish2() {
+		finish2(false);
+	}
+	
+	private void finish2(boolean cancelled) {
 		inventory1.clear();
 		inventory2.clear();
 		Component msg = Component.translatable(translateComplete).color(NamedTextColor.GREEN).decoration(TextDecoration.ITALIC,false);
@@ -130,7 +134,7 @@ public class Trade extends Listener {
 			((Player) initiator).sendMessage(msg);
 		}
 		AxTrade.getTradeListener().removeTrading(responder);
-		responder.sendMessage(msg);
+		if (!cancelled) responder.sendMessage(msg);
 	}
 	
 	private void cancel() {
@@ -145,7 +149,7 @@ public class Trade extends Listener {
 			if (!Utils.isNull(item1) && (initiator instanceof Player) && !Utils.isPlayerNPC((Player) initiator)) Utils.givePlayer((Player) initiator,item1,false);
 			if (!Utils.isNull(item2)) Utils.givePlayer(responder,item2,false);
 		}
-		finish2();
+		finish2(true);
 	}
 	
 	private void checkDone() {

@@ -18,7 +18,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 	
 	private HashMap<Player,List<Player>> players;
 	private HashMap<Long,TradeRequest> requests;
-	private int autoCancelTime = 10; // Seconds
+	private int autoCancelTime = 30; // Seconds
 	private Set<Player> trading;
 	
 	public TradeListener() {
@@ -39,7 +39,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 					long id = Long.parseLong(args[3]);
 					if (requests.containsKey(id)) {
 						requests.get(id).accept();
-						return false;
+						return true;
 					}
 				} catch (Exception e) {}
 			} else if (args[0].equals("deny")) {
@@ -47,7 +47,7 @@ public class TradeListener implements CommandExecutor,TabCompleter {
 					long id = Long.parseLong(args[3]);
 					if (requests.containsKey(id)) {
 						requests.get(id).deny();
-						return false;
+						return true;
 					}
 				} catch (Exception e) {}
 			}
